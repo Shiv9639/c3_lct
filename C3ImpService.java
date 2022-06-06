@@ -63,8 +63,37 @@ public class C3ImpService {
 
     private static final String LPV_DELIVERY_END_POINT_VAIRABLE = "https://loblawtestinglaz.jdadelivers.com/ingestion/api/v1/ingestions?sender=LOBLAWS.INC&receivers=LCT.GLOBAL&entity=purchaseOrderC3Message&bulkFormat=CSV&entityVersion=BY-2020.1.0&model=native";
     private static final String LPV_PO_END_POINT_VAIRABLE = "https://loblawtestinglaz.jdadelivers.com/ingestion/api/v1/ingestions?sender=LOBLAWS.INC&receivers=LCT.GLOBAL&entity=deliveryShipmentC3Message&bulkFormat=CSV&entityVersion=BY-2020.1.0&model=native";
+    private String BY_TOKEN_URL;
+    private String BY_TOKEN_CLIENT_ID;
+    private String BY_TOKEN_CLIENT_SECRET;
+    private String BY_TOKEN_GRANT_TYPE;
+    private String BY_TOKEN_SCOPE;
 
-    LpvToken lpvtoken=null;
+
+
+
+    public void setBY_TOKEN_CLIENT_ID(String bY_TOKEN_CLIENT_ID) {
+        BY_TOKEN_CLIENT_ID = bY_TOKEN_CLIENT_ID;
+    }
+
+    public void setBY_TOKEN_CLIENT_SECRET(String bY_TOKEN_CLIENT_SECRET) {
+        BY_TOKEN_CLIENT_SECRET = bY_TOKEN_CLIENT_SECRET;
+    }
+
+    public void setBY_TOKEN_GRANT_TYPE(String bY_TOKEN_GRANT_TYPE) {
+        BY_TOKEN_GRANT_TYPE = bY_TOKEN_GRANT_TYPE;
+    }
+
+    public void setBY_TOKEN_SCOPE(String bY_TOKEN_SCOPE) {
+        BY_TOKEN_SCOPE = bY_TOKEN_SCOPE;
+    }
+
+    public void setBY_TOKEN_URL(String bY_TOKEN_URL) {
+        BY_TOKEN_URL = bY_TOKEN_URL;
+    }
+    public C3ImpService() throws Exception {
+    }
+
     public String getFileName() {
         return fileName;
     }
@@ -85,18 +114,43 @@ public class C3ImpService {
 //		LoggingUtilities.generateInfoLog("bulkId :" + getFileName().replace(".csv", ""));
         return params;
     }
-    public void postCSVFile(File csvFile, LpvToken token, String url, String entityName) throws Exception {
+    public void postCSVFile(String entityName) throws Exception {
         try {
-            setFileName(csvFile.getName());
-            HttpClient client = HttpClientBuilder.create().build();
-            HttpPost post = new HttpPost(url.concat("&bulkId="+getFileName().replace(".csv", "")));
-            post.setHeader(org.apache.http.HttpHeaders.CONTENT_TYPE, CONTENT_TYPE);
-            post.setHeader(HttpHeaders.AUTHORIZATION, token.getToken_type() + " " + token.getAccess_token());
-            post.setEntity(new UrlEncodedFormEntity(getLpvParams(entityName)));
-            post.setEntity(EntityBuilder.create().setBinary(Files.readAllBytes(csvFile.toPath()))
-                    .setContentType(org.apache.http.entity.ContentType.create("application/csv")).build());
-            HttpResponse response = client.execute(post);
-            processLpvResponse(response, url);
+            String url="";
+            LpvTokenServiceImpl tokenService = new LpvTokenServiceImpl();
+            tokenService.setBY_TOKEN_URL(BY_TOKEN_URL);
+            tokenService.setBY_TOKEN_CLIENT_ID(BY_TOKEN_CLIENT_ID);
+            tokenService.setBY_TOKEN_CLIENT_SECRET(BY_TOKEN_CLIENT_SECRET);
+            tokenService.setBY_TOKEN_GRANT_TYPE(BY_TOKEN_GRANT_TYPE);
+            tokenService.setBY_TOKEN_SCOPE(BY_TOKEN_SCOPE);
+            LpvToken lpvToken = tokenService.getLpvToken();
+            File dir = new File("/home/shivang/Documents/LCTFiles");
+            File[] directoryListing = dir.listFiles();
+            if (directoryListing != null) {
+                for (File child : directoryListing) {
+                    // Do something with child
+                    setFileName(child.getName());
+                    if(child.getName().startsWith("lct_dl_C3")){
+                        url=LPV_DELIVERY_END_POINT_VAIRABLE;
+                    }
+                    else{
+                        url=LPV_PO_END_POINT_VAIRABLE;
+                    }
+                    HttpClient client = HttpClientBuilder.create().build();
+                    HttpPost post = new HttpPost(url.trim().concat("&bulkId=" + getFileName().replace(".csv", "")));
+                    post.setHeader(org.apache.http.HttpHeaders.CONTENT_TYPE, CONTENT_TYPE);
+                    post.setHeader(HttpHeaders.AUTHORIZATION, lpvToken.getToken_type() + " " + lpvToken.getAccess_token());
+                    post.setEntity(new UrlEncodedFormEntity(getLpvParams(entityName)));
+                    post.setEntity(EntityBuilder.create().setBinary(Files.readAllBytes(child.toPath()))
+                            .setContentType(org.apache.http.entity.ContentType.create("application/csv")).build());
+                    HttpResponse response = client.execute(post);
+                    processLpvResponse(response, url.trim());
+                }
+            }
+            else{
+                System.out.println("Folder is empty. No Files found!");
+            }
+
         } catch (Exception ex) {
             throw ex;
         }
@@ -153,18 +207,18 @@ public class C3ImpService {
                 "ZAWP", "ZSDM", "ZAWR", "ZSNL", "ZIBR", "ZCOV", "ZIBN", "ZPRO", "NB" };
         List<C3Master> l = repository.findAll();
         List<String> po = new ArrayList<>();
-        String str = "20220527142738";
+       // String str = "20220527142738";
 
-        System.out.println("Data in format--" +RESPONSE_UTC_TIME_FORMATTER.format(new Date()));
+        //System.out.println("Data in format--" +RESPONSE_UTC_TIME_FORMATTER.format(new Date()));
 //        ZoneId canada = ZoneId.of("Canada/Eastern");
 //
 //        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("YYYY-MM-dd'T'HH:mm:ss.SSS'Z'",Locale.US);
 //        LocalDateTime localtDateAndTime = LocalDateTime.parse("27Mar2022 2:10:00", formatter);
 //        ZonedDateTime dateAndTimeInCanada = ZonedDateTime.of(localtDateAndTime, canada );
 //Oct 11, 2021
-        LocalDate ld = LocalDate.parse("Mar 27, 2022 2:10:00",
-                DateTimeFormatter.ofPattern("YYYY-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US));
-        System.out.println("Current date and time in a particular timezone : " + ld);
+//        LocalDate ld = LocalDate.parse("Mar 27, 2022 2:10:00",
+//                DateTimeFormatter.ofPattern("YYYY-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US));
+//        System.out.println("Current date and time in a particular timezone : " + ld);
 
 //        ZonedDateTime utcDate = dateAndTimeInCanada.withZoneSameInstant(ZoneOffset.UTC);
 
@@ -187,13 +241,13 @@ public class C3ImpService {
                         if ((!c3.getCurrent_WorkflowStateName_ID().trim().equals("Arrived")) ||
                                 (!c3.getCurrent_WorkflowStateName_ID().trim().equals("In Door"))
                                 || (!c3.getCurrent_WorkflowStateName_ID().trim().equals("Refused"))) {
-//                            reasonCodeMaster=new ReasonCodeMaster();
-//                            reasonCodeMaster.setPurchaseOrderNumber(s1);
-//                            reasonCodeMaster.setReasonCode("36");
-//                            reasonCodeMaster.setTimeStamp(LocalDateTime.now());
-//                            reasonCodeMaster.setReasonCodeDescription(" Status not relevant for LCT");
-//                            reasonCodeMaster.setPoType("ZIPR");
-//                            mongoTemplate.save(reasonCodeMaster);
+                            ReasonCodeMaster reasonCodeMaster=new ReasonCodeMaster();
+                            reasonCodeMaster.setPurchaseOrderNumber(s1);
+                            reasonCodeMaster.setReasonCode("36");
+                            reasonCodeMaster.setTimeStamp(LocalDateTime.now());
+                            reasonCodeMaster.setReasonCodeDescription(" Status not relevant for LCT");
+                            reasonCodeMaster.setPoType("ZIPR");
+                            mongoTemplate.save(reasonCodeMaster);
                         }
                     }
                     if (!c3.getPurchaseOrderNumber().trim().equals("") && !c3.getCurrent_WorkflowStateName_ID().trim().equals("") && !c3.getSite_ExternalReference().trim().equals("")) {
@@ -543,6 +597,8 @@ public class C3ImpService {
 
 
         }
+
+    postCSVFile("c3collection");
 
     }
 }
