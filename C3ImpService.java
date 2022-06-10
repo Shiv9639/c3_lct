@@ -10,6 +10,8 @@ import com.C3Collection.C3.Repository.R9333LpvPoInterfaceRepo;
 import com.C3Collection.C3.Repository.ReasonCodeInterface;
 import com.C3Collection.C3.constants.LpvConstants;
 import com.opencsv.CSVWriter;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
@@ -54,8 +56,9 @@ public class C3ImpService {
     private final String BULK_FORMAT = "CSV";
     private final String ENTITY_VERSION = "BY-2020.1.0";
     private final String MODEL = "native";
+    //2022-04-18T00:00:00.000-0900
     private static final SimpleDateFormat DATETIMEFORMATTER = new SimpleDateFormat("YYYYMMDDHHMMSSsss");
-    private static final SimpleDateFormat LPVDATEFORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");
+    private static final SimpleDateFormat LPVDATEFORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.sssZ");
     private static final SimpleDateFormat RESPONSE_UTC_TIME_FORMATTER = new SimpleDateFormat("YYYY-MM-dd'T'HH:mm:ss.SSS'Z'");
     private final String OUTPUT_TIME_FORMATTER = "yyyy-MM-dd HH:mm:ss.SSS z";
     // private static final String LPV_DELIVERY_END_POINT_VAIRABLE = System.getenv("BY_LPV_PO_DELIVERY_API_URL");
@@ -155,6 +158,11 @@ public class C3ImpService {
             throw ex;
         }
     }
+
+
+
+
+
     private void processLpvResponse(HttpResponse response, String url) throws IOException, Exception {
         System.out.println("Got response from lpv.");
         if (response == null) {
@@ -225,6 +233,7 @@ public class C3ImpService {
   //      System.out.println("Current date and time in UTC : " + utcDate);
         String SUB_State_Time = "";
         String DO_format = "";
+        FileWriter out = null;
         List<String[]> actual_data = new ArrayList<String[]>();
         int i = 0;
         for (C3Master c3 : l) {
@@ -313,8 +322,9 @@ public class C3ImpService {
 
                                     }
 
-                                    if((!check_if_PO_exists.getIncoTerms2().equals("TMS2")
-                                            || !check_if_PO_exists.getIncoTerms2().equals("SDM") || !check_if_PO_exists.getIncoTerms2().equals("")))
+                                    if((!check_if_PO_exists.getIncoTerms1().equals("TMS2")
+                                            || !check_if_PO_exists.getIncoTerms1
+                                            ().equals("SDM") || !check_if_PO_exists.getIncoTerms1().equals("")))
                                     {
 //                                        reasonCodeMaster=new ReasonCodeMaster();
 //                                        reasonCodeMaster.setPurchaseOrderNumber(s);
@@ -342,11 +352,11 @@ public class C3ImpService {
                                     if (check_if_PO_exists != null &&
                                             test==true &&
 
-                                            (check_if_PO_exists.getProcessIndicator().equals("") || check_if_PO_exists.getProcessIndicator()==null) && (check_if_PO_exists.getIncoTerms2().equals("TMS2")
-                                            || check_if_PO_exists.getIncoTerms2().equals("SDM") || check_if_PO_exists.getIncoTerms2().equals(""))) {
+                                            (check_if_PO_exists.getProcessIndicator().equals("") || check_if_PO_exists.getProcessIndicator()==null) && (check_if_PO_exists.getIncoTerms1().equals("TMS2")
+                                            || check_if_PO_exists.getIncoTerms1().equals("SDM") || check_if_PO_exists.getIncoTerms1().equals(""))) {
                                         File file = new File("/home/shivang/Documents/LCTFiles/lct_po_C3_" + c3.getPurchaseOrderNumber() +"_"+DATETIMEFORMATTER.format((new Date()))+"_"+DATETIMEFORMATTER.format((new Date()))+ ".csv");
                                         FileWriter outputfile = new FileWriter(file);
-                                        List<String[]> data = new ArrayList<String[]>();
+                                        //List<String[]> data = new ArrayList<String[]>();
                                         CSVWriter writer = new CSVWriter(outputfile);
 
                                         if (c3.getCurrent_WorkflowStateName_ID() != null && c3.getCurrent_WorkflowStateName_ID().trim().equals("Arrived")) {
@@ -355,21 +365,26 @@ public class C3ImpService {
                                             LpvToken lpvtoken=null;
                                             File file_deliveryPO = new File("/home/shivang/Documents/LCTFiles/lct_dl_C3_" + c3.getPurchaseOrderNumber() +"_"+DATETIMEFORMATTER.format((new Date()))+"_"+DATETIMEFORMATTER.format((new Date()))+ ".csv");
                                             FileWriter outputfile_deliveryPO = new FileWriter(file_deliveryPO);
-                                            List<String[]> data_delivery_PO = new ArrayList<String[]>();
+                                            //List<String[]> data_delivery_PO = new ArrayList<String[]>();
                                             CSVWriter writer_to_deliver_PO = new CSVWriter(outputfile_deliveryPO);
 
-                                            data.clear();
-                                            data.add(new String[]{"Delivery No", "Delivery Type", "Shipment Type", "Customer", "Supplier", "Operation Name", "ATA", "ATAC3","Transaction Id"});
-                                            writer_to_deliver_PO.writeAll(data);
+                                            //data.clear();
+                                            CSVPrinter printer = new CSVPrinter(outputfile_deliveryPO,
+                                                    CSVFormat.DEFAULT.withHeader("Delivery No", "Delivery Type", "Shipment Type", "Customer", "Supplier", "Operation Name", "ATA", "ATAC3","Transaction Id"));
+                                          //  data.add(new String[]{"Delivery No", "Delivery Type", "Shipment Type", "Customer", "Supplier", "Operation Name", "ATA", "ATAC3","Transaction Id"});
+                                          //  writer_to_deliver_PO.writeAll(data);
 
-
-                                            data_delivery_PO.add(new String[]{c3.getPurchaseOrderNumber(), "InboundDelivery", "InboundShipment", "Loblaw", check_if_PO_exists.getSupplierName(), "CreateDelivery", c3.getCustomDateTime01UTC(), c3.getCustomDateTime01UTC(),"C3_"+DATETIMEFORMATTER.format((new Date()))});
-                                            writer_to_deliver_PO.writeAll(data_delivery_PO);
-                                            writer_to_deliver_PO.close();
+                                            printer.printRecord(c3.getPurchaseOrderNumber(), "InboundDelivery", "InboundShipment", "Loblaw", check_if_PO_exists.getSupplierName(), "CreateDelivery", c3.getCustomDateTime01UTC(), c3.getCustomDateTime01UTC(),"C3_"+DATETIMEFORMATTER.format((new Date())));
+                                            //data_delivery_PO.add(new String[]{c3.getPurchaseOrderNumber(), "InboundDelivery", "InboundShipment", "Loblaw", check_if_PO_exists.getSupplierName(), "CreateDelivery", c3.getCustomDateTime01UTC(), c3.getCustomDateTime01UTC(),"C3_"+DATETIMEFORMATTER.format((new Date()))});
+                                            //writer_to_deliver_PO.writeAll(data_delivery_PO);
+                                            //writer_to_deliver_PO.close();
+                                            outputfile_deliveryPO.flush();
+                                            outputfile_deliveryPO.close();
+                                            outputfile_deliveryPO = null;
                                          //   postCSVFile(file_deliveryPO,lpvtoken, LPV_DELIVERY_END_POINT_VAIRABLE,"c3collection");
 
-                                            data_delivery_PO.clear();
-                                            data.clear();
+                                            //data_delivery_PO.clear();
+                                          //  data.clear();
 
 
                                         } else if (c3.getCurrent_WorkflowStateName_ID() != null && c3.getCurrent_WorkflowStateName_ID().trim().equals("In Door")) {
@@ -381,8 +396,10 @@ public class C3ImpService {
                                         }
 
 
-                                        data.add(new String[]{"Order No", "Order Type", "Process Type", "Customer", "Supplier", "Operation Name", "UDF C3 Sub State", "Sub State Time", "Door Number","Transaction Id"});
-                                        writer.writeAll(data);
+                                        CSVPrinter printer = new CSVPrinter(outputfile,
+                                                CSVFormat.DEFAULT.withHeader("Order No", "Order Type", "Process Type", "Customer", "Supplier", "Operation Name", "UDF C3 Sub State", "Sub State Time", "Door Number","Transaction Id"));
+                                     //   data.add(new String[]{"Order No", "Order Type", "Process Type", "Customer", "Supplier", "Operation Name", "UDF C3 Sub State", "Sub State Time", "Door Number","Transaction Id"});
+                                       // writer.writeAll(data);
 
 
                                         //System.out.println("if found"+check_if_PO_exists);
@@ -393,12 +410,17 @@ public class C3ImpService {
                                         String Site_ExternalReference = c3.getSite_ExternalReference();
                                         //String indicator=check_if_PO_exists.getIndicator();
                                         //	System.out.print("from other collection matching.. "+po_from_new_data + Current_WorkflowStateName_ID+ Site_ExternalReference +indicator);
-                                        actual_data.add(new String[]{po_from_new_data, "standardPO", "supply", "Loblaw", check_if_PO_exists.getSupplierName(), "CreateOrder", Current_WorkflowStateName_ID, SUB_State_Time, c3.getCustomField05(),"C3_"+DATETIMEFORMATTER.format(
-                                                (new Date()))});
-                                        writer.writeAll(actual_data);
-                                        writer.close();
+                                        printer.printRecord(po_from_new_data, "standardPO", "supply", "Loblaw", check_if_PO_exists.getSupplierName(), "CreateOrder", Current_WorkflowStateName_ID, SUB_State_Time, c3.getCustomField05(),"C3_"+DATETIMEFORMATTER.format(
+                                                (new Date())));
+                                        //actual_data.add(new String[]{po_from_new_data, "standardPO", "supply", "Loblaw", check_if_PO_exists.getSupplierName(), "CreateOrder", Current_WorkflowStateName_ID, SUB_State_Time, c3.getCustomField05(),"C3_"+DATETIMEFORMATTER.format(
+                                          //      (new Date()))});
+                                       // writer.writeAll(actual_data);
+                                        //writer.close();
+                                        outputfile.flush();
+                                        outputfile.close();
+                                        outputfile = null;
                                       //  postCSVFile(file,lpvtoken,LPV_PO_END_POINT_VAIRABLE,"c3collection");
-                                        actual_data.clear();
+                                        //actual_data.clear();
                                         //writer.flush();
                                         i++;
 
@@ -504,8 +526,8 @@ public class C3ImpService {
 
                                         }
 
-                                        if((!check_if_PO_exists.getIncoTerms2().equals("TMS2")
-                                                || !check_if_PO_exists.getIncoTerms2().equals("SDM") || !check_if_PO_exists.getIncoTerms2().equals("")))
+                                        if((!check_if_PO_exists.getIncoTerms1().equals("TMS2")
+                                                || !check_if_PO_exists.getIncoTerms1().equals("SDM") || !check_if_PO_exists.getIncoTerms1().equals("")))
                                         {
 
 //                                            reasonCodeMaster.setPurchaseOrderNumber(check_if_PO_exists.getPurchaseOrderId());
@@ -531,8 +553,8 @@ public class C3ImpService {
 
 
                                         if (check_if_PO_exists != null && test==true && (check_if_PO_exists.getProcessIndicator().equals("") || check_if_PO_exists.getProcessIndicator()==null)
-                                                && (check_if_PO_exists.getIncoTerms2().equals("TMS2") ||
-                                                check_if_PO_exists.getIncoTerms2().equals("SDM") || check_if_PO_exists.getIncoTerms2().equals(""))) {
+                                                && (check_if_PO_exists.getIncoTerms1().equals("TMS2") ||
+                                                check_if_PO_exists.getIncoTerms1().equals("SDM") || check_if_PO_exists.getIncoTerms1().equals(""))) {
 
 
                                             File file = new File("/home/shivang/Documents/LCTFiles/lct_po_C3_" + c3.getPurchaseOrderNumber() +"_"+DATETIMEFORMATTER.format((new Date()))+"_"+DATETIMEFORMATTER.format((new Date()))+ ".csv");
@@ -549,24 +571,30 @@ public class C3ImpService {
                                                 List<String[]> data_delivery_PO = new ArrayList<String[]>();
                                                 CSVWriter writer_to_deliver_PO = new CSVWriter(outputfile_deliveryPO);
 
-                                                data.clear();
-                                                data.add(new String[]{"Delivery No", "Delivery Type", "Shipment Type", "Customer", "Supplier", "Operation Name", "ATA", "ATAC3","Transaction Id"});
-                                                writer_to_deliver_PO.writeAll(data);
-
-
-                                                data_delivery_PO.add(new String[]{c3.getPurchaseOrderNumber(), "InboundDelivery", "InboundShipment", "Loblaw", check_if_PO_exists.getSupplierName(), "CreateDelivery", c3.getCustomDateTime01UTC(), c3.getCustomDateTime01UTC(),"C3_"+DATETIMEFORMATTER.format((new Date()))});
-                                                writer_to_deliver_PO.writeAll(data_delivery_PO);
-                                                writer_to_deliver_PO.close();
+                                                //data.clear();
+                                                CSVPrinter printer = new CSVPrinter(outputfile_deliveryPO,
+                                                        CSVFormat.DEFAULT.withHeader("Delivery No", "Delivery Type", "Shipment Type", "Customer", "Supplier", "Operation Name", "ATA", "ATAC3","Transaction Id"));
+                                             //   data.add(new String[]{"Delivery No", "Delivery Type", "Shipment Type", "Customer", "Supplier", "Operation Name", "ATA", "ATAC3","Transaction Id"});
+                                               // writer_to_deliver_PO.writeAll(data);
+                                                printer.printRecord(c3.getPurchaseOrderNumber(), "InboundDelivery", "InboundShipment", "Loblaw", check_if_PO_exists.getSupplierName(), "CreateDelivery", c3.getCustomDateTime01UTC(), c3.getCustomDateTime01UTC(),"C3_"+DATETIMEFORMATTER.format((new Date())));
+                                             //   data_delivery_PO.add(new String[]{c3.getPurchaseOrderNumber(), "InboundDelivery", "InboundShipment", "Loblaw", check_if_PO_exists.getSupplierName(), "CreateDelivery", c3.getCustomDateTime01UTC(), c3.getCustomDateTime01UTC(),"C3_"+DATETIMEFORMATTER.format((new Date()))});
+                                               // writer_to_deliver_PO.writeAll(data_delivery_PO);
+                                                //writer_to_deliver_PO.close();
                                             //    postCSVFile(file_deliveryPO,lpvtoken, LPV_DELIVERY_END_POINT_VAIRABLE,"c3collection");
-                                                data_delivery_PO.clear();
-                                                data.clear();
+                                              //  data_delivery_PO.clear();
+                                                //data.clear();
+                                                outputfile_deliveryPO.flush();
+                                                outputfile_deliveryPO.close();
+                                              //  outputfile_deliveryPO = null;
                                             } else if (c3.getCurrent_WorkflowStateName_ID() != null && c3.getCurrent_WorkflowStateName_ID().trim().equals("In Door")) {
                                                 SUB_State_Time = c3.getCustomDateTime02UTC();
                                             } else if (c3.getCurrent_WorkflowStateName_ID() != null && c3.getCurrent_WorkflowStateName_ID().trim().equals("Refused")) {
                                                 SUB_State_Time = c3.getCustomDateTime04UTC();
                                             }
-                                            data.add(new String[]{"Order No", "Order Type", "Process Type", "Customer", "Supplier", "Operation Name", "UDF C3 Sub State", "Sub State Time", "Door Number","Transaction Id"});
-                                            writer.writeAll(data);
+                                            CSVPrinter printer = new CSVPrinter(outputfile,
+                                                    CSVFormat.DEFAULT.withHeader("Order No", "Order Type", "Process Type", "Customer", "Supplier", "Operation Name", "UDF C3 Sub State", "Sub State Time", "Door Number","Transaction Id"));
+                                          //  data.add(new String[]{"Order No", "Order Type", "Process Type", "Customer", "Supplier", "Operation Name", "UDF C3 Sub State", "Sub State Time", "Door Number","Transaction Id"});
+                                            //writer.writeAll(data);
                                             //System.out.println("if found"+check_if_PO_exists);
 
                                             String po_from_new_data = c3.getPurchaseOrderNumber();
@@ -575,9 +603,13 @@ public class C3ImpService {
                                             //String indicator=check_if_PO_exists.getIndicator();
                                             System.out.print("from other collection matching.." + po_from_new_data + Current_WorkflowStateName_ID + Site_ExternalReference + check_if_PO_exists.getSupplierName());
                                             //actual_data.add(new String[] {po_from_new_data,Current_WorkflowStateName_ID,Site_ExternalReference,indicator});
-                                            actual_data.add(new String[]{po_from_new_data, "standardPO", "supply", "Loblaw", check_if_PO_exists.getSupplierName(), "CreateOrder", Current_WorkflowStateName_ID, SUB_State_Time, c3.getCustomField05(),"C3_"+DATETIMEFORMATTER.format((new Date()))});
-                                            writer.writeAll(actual_data);
-                                            writer.close();
+                                            printer.printRecord(po_from_new_data, "standardPO", "supply", "Loblaw", check_if_PO_exists.getSupplierName(), "CreateOrder", Current_WorkflowStateName_ID, SUB_State_Time, c3.getCustomField05(),"C3_"+DATETIMEFORMATTER.format((new Date())));
+                                        //    actual_data.add(new String[]{po_from_new_data, "standardPO", "supply", "Loblaw", check_if_PO_exists.getSupplierName(), "CreateOrder", Current_WorkflowStateName_ID, SUB_State_Time, c3.getCustomField05(),"C3_"+DATETIMEFORMATTER.format((new Date()))});
+                                          //  writer.writeAll(actual_data);
+                                            //writer.close();
+                                            outputfile.flush();
+                                            outputfile.close();
+                                            outputfile = null;
                                        //     postCSVFile(file,lpvtoken, LPV_PO_END_POINT_VAIRABLE,"c3collection");
                                             actual_data.clear();
                                             //writer.flush();
@@ -598,7 +630,7 @@ public class C3ImpService {
 
         }
 
-    postCSVFile("c3collection");
+    //postCSVFile("c3collection");
 
     }
 }
