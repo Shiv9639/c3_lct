@@ -1,14 +1,15 @@
 package com.C3Collection.C3.Service;
+import java.io.*;
 import java.lang.String;
-import com.C3Collection.C3.Model.C3Master;
-import com.C3Collection.C3.Model.LpvToken;
-import com.C3Collection.C3.Model.R9333LpvPoInterface;
-import com.C3Collection.C3.Model.ReasonCodeMaster;
+
+import com.C3Collection.C3.Model.*;
 import com.C3Collection.C3.Repository.C3MasterRepo;
 import com.C3Collection.C3.Repository.DatFileReaderRepo;
 import com.C3Collection.C3.Repository.R9333LpvPoInterfaceRepo;
 import com.C3Collection.C3.Repository.ReasonCodeInterface;
 import com.C3Collection.C3.constants.LpvConstants;
+import com.google.gson.Gson;
+import com.opencsv.CSVReader;
 import com.opencsv.CSVWriter;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
@@ -28,9 +29,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import javax.swing.text.Document;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.time.*;
@@ -71,10 +71,6 @@ public class C3ImpService {
     private String BY_TOKEN_CLIENT_SECRET;
     private String BY_TOKEN_GRANT_TYPE;
     private String BY_TOKEN_SCOPE;
-
-
-
-
     public void setBY_TOKEN_CLIENT_ID(String bY_TOKEN_CLIENT_ID) {
         BY_TOKEN_CLIENT_ID = bY_TOKEN_CLIENT_ID;
     }
@@ -117,6 +113,95 @@ public class C3ImpService {
 //		LoggingUtilities.generateInfoLog("bulkId :" + getFileName().replace(".csv", ""));
         return params;
     }
+
+    public void readDatFileToMongo() throws Exception {
+        ArrayList<String> data = new ArrayList<String>();
+        try {
+            String[] lines = Files.readAllLines(new File("/home/shivang/Downloads/2022-05-30_12-00_Workflow_Reservations.dat").toPath()).toArray(new String[0]);
+            for (String s : lines) {
+                data.add(s);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        writeCsvFile("/home/shivang/Downloads/2022-05-30_12-00_Workflow_Reservations.csv", data);
+        C3File file=new C3File();
+        Document doc=null;
+        file.setFileName("/home/shivang/Downloads/2022-05-30_12-00_Workflow_Reservations.csv");
+
+    }
+    private String parseCSVFile(C3File file) throws Exception {
+        String result = "";
+        try {
+            InputStream in = new ByteArrayInputStream(file.getContent().getBytes());
+            com.C3Collection.C3.Model.CSVReader csv=new com.C3Collection.C3.Model.CSVReader(true, ',', in);
+            List<String> fieldNames = null;
+            if (csv.hasNext())
+                fieldNames = new ArrayList<>(csv.next());
+            List<Map<String, String>> list = new ArrayList<>();
+            while (csv.hasNext()) {
+                List<String> x = csv.next();
+                Map<String, String> obj = new LinkedHashMap<>();
+                for (int i = 0; i < fieldNames.size(); i++) {
+                    obj.put(fieldNames.get(i), x.get(i));
+                }
+                list.add(obj);
+            }
+            List<Map<String, List>> documentList = new ArrayList<>();
+            Map<String, List> fileContent = new LinkedHashMap<>();
+            fileContent.put("File_Content", list);
+            documentList.add(fileContent);
+            csv.close();
+            Gson gson = new Gson();
+            String jsonString = gson.toJson(documentList);
+            result = jsonString.substring(1, jsonString.length() - 1);
+        } catch (Exception ex) {
+            throw ex;
+        }
+        return result;
+    }
+
+
+
+
+    public static void writeCsvFile(String fileName, ArrayList<String> data) {
+        String COMMA_DELIMITER = ",";
+        String NEW_LINE_SEPARATOR = "\n";
+
+        ArrayList<String> students = data;
+        FileWriter fileWriter = null;
+        try {
+            int i=0;
+            fileWriter = new FileWriter(fileName);
+            for (String student111 : students) {
+
+                String datafinal[] = student111.split("\\|");
+                for (String dat1 : datafinal) {
+                    fileWriter.append(dat1);
+                    fileWriter.append(COMMA_DELIMITER);
+                }
+                // String timeStamp=String.valueOf(LocalDateTime.now());
+                // fileWriter.append(timeStamp);
+                fileWriter.append(NEW_LINE_SEPARATOR);
+            }
+            System.out.println("CSV file was created successfully !!!");
+
+        } catch (Exception e) {
+            System.out.println("Error in CsvFileWriter !!!");
+            e.printStackTrace();
+        } finally {
+
+            try {
+                fileWriter.flush();
+                fileWriter.close();
+            } catch (IOException e) {
+                System.out.println("Error while flushing/closing fileWriter !!!");
+                e.printStackTrace();
+            }
+
+        }
+    }
     public void postCSVFile(String entityName) throws Exception {
         try {
             String url="";
@@ -132,12 +217,14 @@ public class C3ImpService {
             if (directoryListing != null) {
                 for (File child : directoryListing) {
                     // Do something with child
+                    System.out.println("inside child--"+child);
                     setFileName(child.getName());
                     if(child.getName().startsWith("lct_dl_C3")){
+                        url="";
                         url=LPV_DELIVERY_END_POINT_VAIRABLE;
                     }
-                    else{
-                        url=LPV_PO_END_POINT_VAIRABLE;
+                    else {
+                        url = LPV_PO_END_POINT_VAIRABLE;
                     }
                     HttpClient client = HttpClientBuilder.create().build();
                     HttpPost post = new HttpPost(url.trim().concat("&bulkId=" + getFileName().replace(".csv", "")));
@@ -256,6 +343,7 @@ public class C3ImpService {
                             reasonCodeMaster.setTimeStamp(LocalDateTime.now());
                             reasonCodeMaster.setReasonCodeDescription(" Status not relevant for LCT");
                             reasonCodeMaster.setPoType("ZIPR");
+                            reasonCodeMaster.setFileName("2022-05-30_12-00_Workflow_Reservations.csv");
                             mongoTemplate.save(reasonCodeMaster);
                         }
                     }
@@ -282,26 +370,29 @@ public class C3ImpService {
                                         check_dup_in_same_file.put(s,check_dup_in_same_file.get(s)+1);
                                     }
                                 if(s.trim().length()!=10){
-//                                    reasonCodeMaster=new ReasonCodeMaster();
-//                                    reasonCodeMaster.setPurchaseOrderNumber(s);
-//                                    reasonCodeMaster.setReasonCode("30");
-//                                    reasonCodeMaster.setTimeStamp(LocalDateTime.now());
-//                                    reasonCodeMaster.setReasonCodeDescription("Number of digits is not equal to 10");
-//                                    reasonCodeMaster.setPoType("ZIPR");
-//                                    mongoTemplate.save(reasonCodeMaster);
+                                   ReasonCodeMaster reasonCodeMaster=new ReasonCodeMaster();
+                                    reasonCodeMaster.setPurchaseOrderNumber(s);
+                                    reasonCodeMaster.setReasonCode("30");
+                                    reasonCodeMaster.setTimeStamp(LocalDateTime.now());
+                                    reasonCodeMaster.setReasonCodeDescription("Number of digits is not equal to 10");
+                                    reasonCodeMaster.setPoType("ZIPR");
+                                    reasonCodeMaster.setFileName("2022-05-30_12-00_Workflow_Reservations.csv");
+
+                                    mongoTemplate.save(reasonCodeMaster);
 
                                 }
 
 
                                 R9333LpvPoInterface check_if_PO_exists = r9333LpvPoInterfaceRepo.findByPurchaseOrderId(s);
                                 if(check_if_PO_exists==null) {
-//                                    reasonCodeMaster=new ReasonCodeMaster();
-//                                    reasonCodeMaster.setPurchaseOrderNumber(s);
-//                                    reasonCodeMaster.setReasonCode("32");
-//                                    reasonCodeMaster.setTimeStamp(LocalDateTime.now());
-//                                    reasonCodeMaster.setReasonCodeDescription(" PO not found in SCH collection");
-//                                    reasonCodeMaster.setPoType("ZIPR");
-//                                    mongoTemplate.save(reasonCodeMaster);
+                                    ReasonCodeMaster reasonCodeMaster=new ReasonCodeMaster();
+                                    reasonCodeMaster.setPurchaseOrderNumber(s);
+                                    reasonCodeMaster.setReasonCode("32");
+                                    reasonCodeMaster.setTimeStamp(LocalDateTime.now());
+                                    reasonCodeMaster.setReasonCodeDescription(" PO not found in SCH collection");
+                                    reasonCodeMaster.setPoType("ZIPR");
+                                    reasonCodeMaster.setFileName("2022-05-30_12-00_Workflow_Reservations.csv");
+                                    mongoTemplate.save(reasonCodeMaster);
 
                                 }
 
@@ -312,13 +403,14 @@ public class C3ImpService {
                                             .contains(check_if_PO_exists.getErpOrderType());
 
                                     if(test==false){
-//                                        reasonCodeMaster=new ReasonCodeMaster();
-//                                        reasonCodeMaster.setPurchaseOrderNumber(s);
-//                                        reasonCodeMaster.setReasonCode("34");
-//                                        reasonCodeMaster.setTimeStamp(LocalDateTime.now());
-//                                        reasonCodeMaster.setReasonCodeDescription("Invalid PO Type");
-//                                        reasonCodeMaster.setPoType("ZIPR");
-//                                        mongoTemplate.save(reasonCodeMaster);
+                                        ReasonCodeMaster reasonCodeMaster=new ReasonCodeMaster();
+                                        reasonCodeMaster.setPurchaseOrderNumber(s);
+                                        reasonCodeMaster.setReasonCode("34");
+                                        reasonCodeMaster.setTimeStamp(LocalDateTime.now());
+                                        reasonCodeMaster.setReasonCodeDescription("Invalid PO Type");
+                                        reasonCodeMaster.setPoType("ZIPR");
+                                        reasonCodeMaster.setFileName("2022-05-30_12-00_Workflow_Reservations.csv");
+                                        mongoTemplate.save(reasonCodeMaster);
 
                                     }
 
@@ -326,26 +418,28 @@ public class C3ImpService {
                                             || !check_if_PO_exists.getIncoTerms1
                                             ().equals("SDM") || !check_if_PO_exists.getIncoTerms1().equals("")))
                                     {
-//                                        reasonCodeMaster=new ReasonCodeMaster();
-//                                        reasonCodeMaster.setPurchaseOrderNumber(s);
-//                                        reasonCodeMaster.setReasonCode("35");
-//                                        reasonCodeMaster.setTimeStamp(LocalDateTime.now());
-//                                        reasonCodeMaster.setReasonCodeDescription("Invalid INCO1");
-//                                        reasonCodeMaster.setPoType("ZIPR");
-//                                        mongoTemplate.save(reasonCodeMaster);
+                                       ReasonCodeMaster reasonCodeMaster=new ReasonCodeMaster();
+                                        reasonCodeMaster.setPurchaseOrderNumber(s);
+                                        reasonCodeMaster.setReasonCode("35");
+                                        reasonCodeMaster.setTimeStamp(LocalDateTime.now());
+                                        reasonCodeMaster.setReasonCodeDescription("Invalid INCO1");
+                                        reasonCodeMaster.setPoType("ZIPR");
+                                        reasonCodeMaster.setFileName("2022-05-30_12-00_Workflow_Reservations.csv");
+                                        mongoTemplate.save(reasonCodeMaster);
 
 
 
 
                                     }
                                     if(!check_if_PO_exists.getProcessIndicator().equals("") || check_if_PO_exists.getProcessIndicator()!=null){
-//                                        reasonCodeMaster=new ReasonCodeMaster();
-//                                        reasonCodeMaster.setPurchaseOrderNumber(s);
-//                                        reasonCodeMaster.setReasonCode("33");
-//                                        reasonCodeMaster.setTimeStamp(LocalDateTime.now());
-//                                        reasonCodeMaster.setReasonCodeDescription("PO in SCH collection have PO Close Indicator");
-//                                        reasonCodeMaster.setPoType("ZIPR");
-//                                        mongoTemplate.save(reasonCodeMaster);
+                                        ReasonCodeMaster reasonCodeMaster=new ReasonCodeMaster();
+                                        reasonCodeMaster.setPurchaseOrderNumber(s);
+                                        reasonCodeMaster.setReasonCode("33");
+                                        reasonCodeMaster.setTimeStamp(LocalDateTime.now());
+                                        reasonCodeMaster.setReasonCodeDescription("PO in SCH collection have PO Close Indicator");
+                                        reasonCodeMaster.setPoType("ZIPR");
+                                        reasonCodeMaster.setFileName("2022-05-30_12-00_Workflow_Reservations.csv");
+                                        mongoTemplate.save(reasonCodeMaster);
                                     }
 
 
@@ -433,13 +527,14 @@ public class C3ImpService {
 
                             for(String check_dup:check_dup_in_same_file.keySet()){
                                 if(check_dup_in_same_file.get(check_dup)>1){
-//                                    reasonCodeMaster=new ReasonCodeMaster();
-//                                    reasonCodeMaster.setPurchaseOrderNumber(check_dup);
-//                                    reasonCodeMaster.setReasonCode("31");
-//                                    reasonCodeMaster.setTimeStamp(LocalDateTime.now());
-//                                    reasonCodeMaster.setReasonCodeDescription("Duplications within the input file");
-//                                    reasonCodeMaster.setPoType("ZIPR");
-//                                    mongoTemplate.save(reasonCodeMaster);
+                                    ReasonCodeMaster reasonCodeMaster=new ReasonCodeMaster();
+                                    reasonCodeMaster.setPurchaseOrderNumber(check_dup);
+                                    reasonCodeMaster.setReasonCode("31");
+                                    reasonCodeMaster.setTimeStamp(LocalDateTime.now());
+                                    reasonCodeMaster.setReasonCodeDescription("Duplications within the input file");
+                                    reasonCodeMaster.setPoType("ZIPR");
+                                    reasonCodeMaster.setFileName("2022-05-30_12-00_Workflow_Reservations.csv");
+                                    mongoTemplate.save(reasonCodeMaster);
 
 
                                 }
@@ -456,13 +551,14 @@ public class C3ImpService {
                         int len_check_po=c3.getPurchaseOrderNumber().trim().length();
 
                         if(len_check_po!=10){
-//                            reasonCodeMaster=new ReasonCodeMaster();
-//                            reasonCodeMaster.setPurchaseOrderNumber(c3.getPurchaseOrderNumber().trim());
-//                            reasonCodeMaster.setReasonCode("30");
-//                            reasonCodeMaster.setTimeStamp(LocalDateTime.now());
-//                            reasonCodeMaster.setReasonCodeDescription("Number of digits is not equal to 10");
-//                            reasonCodeMaster.setPoType("ZIPR");
-//                            mongoTemplate.save(reasonCodeMaster);
+                            ReasonCodeMaster reasonCodeMaster=new ReasonCodeMaster();
+                            reasonCodeMaster.setPurchaseOrderNumber(c3.getPurchaseOrderNumber().trim());
+                            reasonCodeMaster.setReasonCode("30");
+                            reasonCodeMaster.setTimeStamp(LocalDateTime.now());
+                            reasonCodeMaster.setReasonCodeDescription("Number of digits is not equal to 10");
+                            reasonCodeMaster.setPoType("ZIPR");
+                            reasonCodeMaster.setFileName("2022-05-30_12-00_Workflow_Reservations.csv");
+                            mongoTemplate.save(reasonCodeMaster);
                         }
 
 
@@ -470,13 +566,14 @@ public class C3ImpService {
                                 (!c3.getCurrent_WorkflowStateName_ID().trim().equals("In Door"))
 
                                 || (!c3.getCurrent_WorkflowStateName_ID().trim().equals("Refused"))) {
-//                            reasonCodeMaster=new ReasonCodeMaster();
-//                            reasonCodeMaster.setPurchaseOrderNumber(c3.getPurchaseOrderNumber());
-//                            reasonCodeMaster.setReasonCode("36");
-//                            reasonCodeMaster.setTimeStamp(LocalDateTime.now());
-//                            reasonCodeMaster.setReasonCodeDescription("Status not relevant for LCT");
-//                            reasonCodeMaster.setPoType("ZIPR");
-//                            mongoTemplate.save(reasonCodeMaster);
+                            ReasonCodeMaster reasonCodeMaster=new ReasonCodeMaster();
+                            reasonCodeMaster.setPurchaseOrderNumber(c3.getPurchaseOrderNumber());
+                            reasonCodeMaster.setReasonCode("36");
+                            reasonCodeMaster.setTimeStamp(LocalDateTime.now());
+                            reasonCodeMaster.setReasonCodeDescription("Status not relevant for LCT");
+                            reasonCodeMaster.setPoType("ZIPR");
+                            reasonCodeMaster.setFileName("2022-05-30_12-00_Workflow_Reservations.csv");
+                            mongoTemplate.save(reasonCodeMaster);
                         }
 
 
@@ -498,13 +595,14 @@ public class C3ImpService {
                                     R9333LpvPoInterface check_if_PO_exists = r9333LpvPoInterfaceRepo.findByPurchaseOrderId(c3.getPurchaseOrderNumber());
 
                                     if(check_if_PO_exists==null) {
-//                                        reasonCodeMaster=new ReasonCodeMaster();
-//                                    reasonCodeMaster.setPurchaseOrderNumber(c3.getPurchaseOrderNumber());
-//                                    reasonCodeMaster.setReasonCode("32");
-//                                    reasonCodeMaster.setTimeStamp(LocalDateTime.now());
-//                                    reasonCodeMaster.setReasonCodeDescription(" PO not found in SCH collection");
-//                                    reasonCodeMaster.setPoType("ZIPR");
-//                                    mongoTemplate.save(reasonCodeMaster);
+                                        ReasonCodeMaster reasonCodeMaster=new ReasonCodeMaster();
+                                    reasonCodeMaster.setPurchaseOrderNumber(c3.getPurchaseOrderNumber());
+                                    reasonCodeMaster.setReasonCode("32");
+                                    reasonCodeMaster.setTimeStamp(LocalDateTime.now());
+                                    reasonCodeMaster.setReasonCodeDescription(" PO not found in SCH collection");
+                                    reasonCodeMaster.setPoType("ZIPR");
+                                    reasonCodeMaster.setFileName("2022-05-30_12-00_Workflow_Reservations.csv");
+                                    mongoTemplate.save(reasonCodeMaster);
 
                                 }
 
@@ -516,38 +614,41 @@ public class C3ImpService {
                                                 .contains(check_if_PO_exists.getErpOrderType());
 
                                         if(test==false){
-//                                            reasonCodeMaster=new ReasonCodeMaster();
-//                                            reasonCodeMaster.setPurchaseOrderNumber(check_if_PO_exists.getPurchaseOrderId());
-//                                            reasonCodeMaster.setReasonCode("34");
-//                                            reasonCodeMaster.setTimeStamp(LocalDateTime.now());
-//                                            reasonCodeMaster.setReasonCodeDescription("Invalid PO Type");
-//                                            reasonCodeMaster.setPoType("ZIPR");
-//                                            mongoTemplate.save(reasonCodeMaster);
+                                            ReasonCodeMaster reasonCodeMaster=new ReasonCodeMaster();
+                                            reasonCodeMaster.setPurchaseOrderNumber(check_if_PO_exists.getPurchaseOrderId());
+                                            reasonCodeMaster.setReasonCode("34");
+                                            reasonCodeMaster.setTimeStamp(LocalDateTime.now());
+                                            reasonCodeMaster.setReasonCodeDescription("Invalid PO Type");
+                                            reasonCodeMaster.setPoType("ZIPR");
+                                            reasonCodeMaster.setFileName("2022-05-30_12-00_Workflow_Reservations.csv");
+                                            mongoTemplate.save(reasonCodeMaster);
 
                                         }
 
                                         if((!check_if_PO_exists.getIncoTerms1().equals("TMS2")
                                                 || !check_if_PO_exists.getIncoTerms1().equals("SDM") || !check_if_PO_exists.getIncoTerms1().equals("")))
                                         {
-
-//                                            reasonCodeMaster.setPurchaseOrderNumber(check_if_PO_exists.getPurchaseOrderId());
-//                                            reasonCodeMaster.setReasonCode("35");
-//                                            reasonCodeMaster.setTimeStamp(LocalDateTime.now());
-//                                            reasonCodeMaster.setReasonCodeDescription("Invalid INCO1");
-//                                            reasonCodeMaster.setPoType("ZIPR");
-//                                            mongoTemplate.save(reasonCodeMaster);
+                                            ReasonCodeMaster reasonCodeMaster=new ReasonCodeMaster();
+                                            reasonCodeMaster.setPurchaseOrderNumber(check_if_PO_exists.getPurchaseOrderId());
+                                            reasonCodeMaster.setReasonCode("35");
+                                            reasonCodeMaster.setTimeStamp(LocalDateTime.now());
+                                            reasonCodeMaster.setReasonCodeDescription("Invalid INCO1");
+                                            reasonCodeMaster.setPoType("ZIPR");
+                                            reasonCodeMaster.setFileName("2022-05-30_12-00_Workflow_Reservations.csv");
+                                            mongoTemplate.save(reasonCodeMaster);
 
 
                                         }
 
                                         if(!check_if_PO_exists.getProcessIndicator().equals("") || check_if_PO_exists.getProcessIndicator()!=null){
-//                                            reasonCodeMaster=new ReasonCodeMaster();
-//                                            reasonCodeMaster.setPurchaseOrderNumber(check_if_PO_exists.getPurchaseOrderId());
-//                                            reasonCodeMaster.setReasonCode("33");
-//                                            reasonCodeMaster.setTimeStamp(LocalDateTime.now());
-//                                            reasonCodeMaster.setReasonCodeDescription("PO in SCH collection have PO Close Indicator");
-//                                            reasonCodeMaster.setPoType("ZIPR");
-//                                            mongoTemplate.save(reasonCodeMaster);
+                                            ReasonCodeMaster reasonCodeMaster=new ReasonCodeMaster();
+                                            reasonCodeMaster.setPurchaseOrderNumber(check_if_PO_exists.getPurchaseOrderId());
+                                            reasonCodeMaster.setReasonCode("33");
+                                            reasonCodeMaster.setTimeStamp(LocalDateTime.now());
+                                            reasonCodeMaster.setReasonCodeDescription("PO in SCH collection have PO Close Indicator");
+                                            reasonCodeMaster.setPoType("ZIPR");
+                                            reasonCodeMaster.setFileName("2022-05-30_12-00_Workflow_Reservations.csv");
+                                            mongoTemplate.save(reasonCodeMaster);
                                         }
 
 
