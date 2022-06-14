@@ -1,0 +1,183 @@
+package QueueMonitoringPreProd;
+
+import java.text.DateFormat;
+import java.text.DecimalFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.TimeZone;
+import java.util.logging.Level;
+import javax.mail.MessagingException;
+import com.mongodb.client.MongoCollection;
+import org.apache.commons.mail.EmailException;
+import org.bson.Document;
+import java.util.Timer;
+import java.util.TimerTask;
+import com.google.common.collect.Iterators;
+import com.mongodb.BasicDBList;
+import com.mongodb.BasicDBObject;
+import com.mongodb.DBObject;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoDatabase;
+
+public class Monitoring {
+	static String previousRunTime;
+	static Date oldDate;
+	public static void main(String[] args) {
+
+		java.util.logging.Logger.getLogger("org.mongodb.driver").setLevel(Level.SEVERE);
+		SendEmail sendEmail = new SendEmail();
+		Timer timer = new Timer();
+		
+		DateFormat formatterDate = new SimpleDateFormat("yyyy-MM-dd");
+		DateFormat formatterTime = new SimpleDateFormat("HH:mm");
+		formatterDate.setTimeZone(TimeZone.getTimeZone("Canada/Eastern"));
+		formatterTime.setTimeZone(TimeZone.getTimeZone("Canada/Eastern"));
+		SimpleDateFormat lpvdateformat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");
+		lpvdateformat.setTimeZone(TimeZone.getTimeZone("UTC"));
+		//System.out.println(lpvdateformat.format(date));
+		
+		previousRunTime=lpvdateformat.format(new Date());
+		
+		//previousRunTime=date1;
+		timer.schedule(new TimerTask() {
+			int processedInLastHourCount=0;
+			@Override
+			public void run() {
+				Date date = new Date();
+				int count = 0;
+				
+				//previousRunTime=lpvdateformat.format(oldDate);
+				//System.out.println("Current time" + formatterTime.format(date) + " " + formatterDate.format(date));
+				String mongoString = "mongodb+srv://scsptdbuser:4aAhYMfq3lo1jXJf@mdbscslwr02-pri.xynd2.gcp.mongodb.net/admin?authSource=admin&replicaSet=atlas-s7fkv6-shard-0&readPreference=primary&appname=MongoDB%20Compass&ssl=true";
+				//System.out.println(previousRunTime);
+				MongoClient mongo = MongoClients.create(mongoString);
+				try {
+					oldDate=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").parse(previousRunTime);
+				} catch (ParseException e) {
+					
+					e.printStackTrace();
+				}
+				MongoDatabase database = mongo.getDatabase("mdb-scs-lwr04");
+				MongoCollection<Document> collection = database.getCollection("R9333LpvPoInterface");
+				BasicDBObject queryProcessedPO = new BasicDBObject();
+				DBObject queryFilter = new BasicDBObject();
+				Calendar c = Calendar.getInstance();
+				c.setTime(oldDate);
+				//System.out.println("Y"+"  "+oldDate);
+				Date time = c.getTime();
+				queryProcessedPO.put("idocProcessedTime", new BasicDBObject("$gt",time));
+				queryFilter.put("processIndicator", new BasicDBObject("$eq", "Y"));
+				BasicDBList and = new BasicDBList();
+				and.add(queryProcessedPO);
+				and.add(queryFilter);
+				BasicDBObject query1 = new BasicDBObject();
+				query1.put("$and",and);
+				//previousRunTime=date;
+				FindIterable<Document> processedPOCount = collection.find(query1);
+				//System.out.println("Y"+"  "+Iterators.size(processedPOCount.iterator()));
+				previousRunTime=lpvdateformat.format(new Date());
+			//	previousRunTime=date;
+				//previousRunTime=lpvdateformat.format(new Date());
+				BasicDBObject query = new BasicDBObject();
+				query.put("processIndicator", new BasicDBObject("$eq", "N"));
+				FindIterable<Document> documents = collection.find(query);
+				
+				count = Iterators.size(documents.iterator());
+				DecimalFormat chosenFormat = new DecimalFormat("#,###"); 
+				//processed POs
+				Document processedPODoc = new Document();
+
+				processedPODoc.append("date", formatterDate.format(date));
+				processedPODoc.append("time_stamp", formatterTime.format(date));
+				processedPODoc.append("processed_PO", Iterators.size(processedPOCount.iterator()));
+				MongoCollection<Document> SCHtoLPVQueue = database.getCollection("SCHtoLPVQueue");
+			
+				SCHtoLPVQueue.insertOne(processedPODoc); 
+				Calendar cal = Calendar.getInstance();
+				cal.setTime(date);
+				int hour = cal.get(Calendar.HOUR_OF_DAY);
+				int dow = cal.get (Calendar.DAY_OF_WEEK);
+				boolean isWeekday = ((dow >= Calendar.MONDAY) && (dow <= Calendar.FRIDAY));
+				boolean isWorkingHour=((hour>=8&&hour<=16));
+				//System.out.println(isWorkingHour);
+				FindIterable<Document> allProcessedPOS = null;
+				if(isWeekday&&isWorkingHour) {
+					allProcessedPOS = SCHtoLPVQueue.find().sort(new Document("_id", -1)).limit(6);
+					//System.out.println(isWorkingHour);
+				}else {
+				allProcessedPOS = SCHtoLPVQueue.find().sort(new Document("_id", -1)).limit(12);
+				}
+				int processedPOSum = 0;
+				for (Document doc : allProcessedPOS) {
+					int temp = (int) doc.get("processed_PO");
+					processedPOSum += temp;
+					//System.out.println(processedPOSum);
+				}
+				
+				if ( processedPOSum == 0) {
+					sendEmail(allProcessedPOS,"OutboundException");
+				}
+		        //send data for last 12 runs to BY team
+				processedInLastHourCount++;
+				//System.out.println(processedInLastHourCount);
+				if(processedInLastHourCount==12) {
+					processedInLastHourCount=0;
+					allProcessedPOS = SCHtoLPVQueue.find().sort(new Document("_id", -1)).limit(12);
+					
+					sendEmail(allProcessedPOS,"sendLastTwelveRuns");
+				}
+				//System.out.println(processedInLastHourCount);
+		        // count = 14097; // we want 1,409,756,867 
+		        //System.out.println(chosenFormat.format(count));
+				Document d = new Document();
+
+				d.append("date", formatterDate.format(date));
+				d.append("time_stamp", formatterTime.format(date));
+				d.append("queue", count);
+				MongoCollection<Document> queue = database.getCollection("Queue");
+
+			   queue.insertOne(d); 
+				
+				
+
+				FindIterable<Document> lastFiveDocs = queue.find().sort(new Document("_id", -1)).limit(5);
+				int lastFiveRunCountSum = 0;
+				for (Document doc : lastFiveDocs) {
+					int temp = (int) doc.get("queue");
+					lastFiveRunCountSum += temp;
+					//System.out.println(lastFiveRunCountSum);
+				}
+				//sendEmail(lastFiveDocs,"QueueException");
+				if (count >= 500 || lastFiveRunCountSum >= 1000) {
+
+					sendEmail(lastFiveDocs,"QueueException");
+				}
+
+				//System.out.println("Inserted Successfully");
+				query.clear();
+				mongo.close();
+
+			}
+
+			private void sendEmail(FindIterable<Document> lastFiveDocs, String task) {
+				try {
+					sendEmail.send(lastFiveDocs,task);
+				} catch (EmailException e) {
+
+					e.printStackTrace();
+				} catch (MessagingException e) {
+					e.printStackTrace();
+				}
+
+			}
+		}, new Date(), 300000l);
+
+	}
+
+}
