@@ -1,17 +1,25 @@
 package Email;
 
+import com.mongodb.BasicDBObject;
 import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
 import org.apache.commons.mail.EmailException;
 import org.apache.commons.mail.HtmlEmail;
 import org.bson.Document;
+import org.bson.conversions.Bson;
+import org.springframework.data.mongodb.core.MongoTemplate;
 
 import javax.mail.MessagingException;
 import javax.mail.internet.InternetAddress;
 import java.util.ArrayList;
 
+import static com.mongodb.client.model.Filters.gte;
+
 public class sendemail {
 
-    public void send(FindIterable<Document> lastFiveDocs, String task) throws EmailException, MessagingException, EmailException {
+    public void send(String task) throws EmailException, MessagingException, EmailException {
         String recipients = "shikha.patel@loblaw.ca,vartika.srivastava@loblaw.ca,boopathy.subramaniam@blueyonder.com,Shivam.Sharma@blueyonder.com";
         String[] recipientList = recipients.split(",");
         ArrayList<InternetAddress> addressesTo = new ArrayList<InternetAddress>();
@@ -44,41 +52,57 @@ public class sendemail {
 
     }
 
-    private StringBuffer writeDataLineByLine(FindIterable<Document> lastFiveDocs, String task) {
+    private StringBuffer writeDataLineByLine(String po_number,String reasonCode, String reason_desc) {
+        String last_time_stamp="";
+        MongoClient mongo = null;
+        mongo = MongoClients.create("mongodb://localhost:27017/C3");
+        MongoCollection<Document> reasoncode_collection = mongo.getDatabase("C3")
+                .getCollection("ReasonCodes");
+
+        MongoTemplate mongoTemplate = new MongoTemplate(mongo, "C3");
+       // FindIterable<Document> reasonCodes = reasoncode_collection.find();
+        FindIterable<Document> reasonCodes = reasoncode_collection.find().sort(new BasicDBObject("timeStamp", -1));
+
         StringBuffer email = new StringBuffer();
         email.append("<html><body>" + "<table >");
-        if(task.equals("QueueException")) {
-            email.append("<p style=\"color:blue;\">Message Queue Log</p>");}
-        email.append("<tr >");
-        email.append("<th>");
-        email.append("Date");
-        email.append("</th>");
-        email.append("<th>");
-        email.append("Time_Stamp");
-        email.append("</th>");
-        email.append("<th>");
-        email.append("Count");
-        email.append("</th>");
 
-        for (Document d : lastFiveDocs) {
-            email.append("<tr style=\"color: blue;\">");
-            email.append("<td>");
-            email.append(d.get("date"));
-            email.append("</td>");
-            email.append("<td>");
-            email.append(d.get("time_stamp"));
-            email.append("</td>");
-            email.append("<td>");
-            if(task.equals("sendLastTwelveRuns")||task.equals("OutboundException")) {
-                email.append(d.get("processed_PO"));}
-
-            else {
-                email.append(d.get("queue"));
-            }
-            email.append("</td>");
-            email.append("<tr>");
+        for (Document findLatestTimeStamp : reasonCodes) {
+            last_time_stamp+=(String)findLatestTimeStamp.get("timeStamp");
+            break;
         }
-
+        Bson filter = gte("reasonCodes.timeStamp",last_time_stamp.trim());
+        if(filter==null){
+            for (Document d : reasonCodes) {
+                email.append("<tr style=\"color: blue;\">");
+                email.append("<td>");
+                email.append(d.get("purchaseOrderNumber"));
+                email.append("</td>");
+                email.append("<td>");
+                email.append(d.get("reasonCode"));
+                email.append("</td>");
+                email.append("<td>");
+                email.append(d.get("reasonCodeDescription"));
+                email.append("</td>");
+                email.append("<tr>");
+            }
+            email.append("</table></body></html>");
+        }
+else {
+            FindIterable<Document> new_data_to_process = reasoncode_collection.find(filter);
+            for (Document d : reasonCodes) {
+                email.append("<tr style=\"color: blue;\">");
+                email.append("<td>");
+                email.append(d.get("purchaseOrderNumber"));
+                email.append("</td>");
+                email.append("<td>");
+                email.append(d.get("reasonCode"));
+                email.append("</td>");
+                email.append("<td>");
+                email.append(d.get("reasonCodeDescription"));
+                email.append("</td>");
+                email.append("<tr>");
+            }
+        }
         email.append("</table></body></html>");
         return email;
 
