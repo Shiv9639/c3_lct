@@ -16,6 +16,15 @@ public class ReasonCodeMaster {
     private String reasonCodeDescription;
     private String poType;
     private String fileName;
+    private int row_count;
+
+    public int getRow_count() {
+        return row_count;
+    }
+
+    public void setRow_count(int row_count) {
+        this.row_count = row_count;
+    }
 
     public String getFileName() {
         return fileName;
@@ -28,7 +37,7 @@ public class ReasonCodeMaster {
     public ReasonCodeMaster(){}
 
     public ReasonCodeMaster(String id, String purchaseOrderNumber, String reasonCode,LocalDateTime timeStamp,
-                            String reasonCodeDescription, String poType, String fileName) {
+                            String reasonCodeDescription, String poType, String fileName, int row_count) {
         this.id = id;
         this.purchaseOrderNumber = purchaseOrderNumber;
         this.reasonCode = reasonCode;   
@@ -36,6 +45,7 @@ public class ReasonCodeMaster {
         this.reasonCodeDescription = reasonCodeDescription;
         this.poType = poType;
         this.fileName=fileName;
+        this.row_count=row_count;
     }
 
 
