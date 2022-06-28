@@ -1,0 +1,9 @@
+  SimpleDateFormat DATETIMEFORMATTER1 = new SimpleDateFormat("yyyyMMddHHmmss");
+
+
+        System.out.println(DATETIMEFORMATTER1.format((new Date())));
+
+        SimpleDateFormat DATETIMEFORMATTER2= new SimpleDateFormat("dd MMM HH:mm");
+
+        System.out.println(DATETIMEFORMATTER2.format((new Date())));
+        
