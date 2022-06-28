@@ -46,12 +46,11 @@ public class sendemail {
             mail.setSubject("[Alert from SCH-PT] Files Posted to LCT");
         }
         mail.setMsg("Test.....");
-        //mail.setHtmlMsg(writeDataLineByLine(lastFiveDocs,"OutboundException").toString());
+      //  mail.setHtmlMsg(writeDataLineByLine("OutboundException").toString());
         mail.send();
         //System.out.println("message sent successfully....");
 
     }
-
     private StringBuffer writeDataLineByLine(String po_number,String reasonCode, String reason_desc) {
         String last_time_stamp="";
         MongoClient mongo = null;
@@ -70,37 +69,61 @@ public class sendemail {
             last_time_stamp+=(String)findLatestTimeStamp.get("timeStamp");
             break;
         }
+        int r33=0;
+        int r34=0;
+        int r35=0;
+        int r37=0;
+        int sum=0;
+        for (Document d : reasonCodes) {
+            if (d.get("reasonCode").equals("33"))
+            {
+                r33++;
+            }
+            if(d.get("reasonCode").equals("34")){r34++;}
+            if(d.get("reasonCode").equals("35")){r35++;}
+            if(d.get("reasonCode").equals("37")){r37++;}
+        }
+        sum=r33+r34+r35+r37;
+
+
         Bson filter = gte("reasonCodes.timeStamp",last_time_stamp.trim());
         if(filter==null){
             for (Document d : reasonCodes) {
-                email.append("<tr style=\"color: blue;\">");
-                email.append("<td>");
-                email.append(d.get("purchaseOrderNumber"));
-                email.append("</td>");
-                email.append("<td>");
-                email.append(d.get("reasonCode"));
-                email.append("</td>");
-                email.append("<td>");
-                email.append(d.get("reasonCodeDescription"));
-                email.append("</td>");
-                email.append("<tr>");
+                if (d.get("reasonCode").equals("33") || d.get("reasonCode").equals("34") || d.get("reasonCode").equals("35") || d.get("reasonCode").equals("37")) {
+
+                    email.append("<tr style=\"color: blue;\">");
+                    email.append("<td>");
+                    email.append(d.get("purchaseOrderNumber"));
+                    email.append("</td>");
+                    email.append("<td>");
+                    email.append(d.get("reasonCode"));
+                    email.append("</td>");
+                    email.append("<td>");
+                    email.append(d.get("reasonCodeDescription"));
+                    email.append("</td>");
+                    email.append(d.get("row_count"));
+                    email.append("</td>");
+                    email.append("<tr>");
+                }
             }
             email.append("</table></body></html>");
         }
 else {
             FindIterable<Document> new_data_to_process = reasoncode_collection.find(filter);
             for (Document d : reasonCodes) {
-                email.append("<tr style=\"color: blue;\">");
-                email.append("<td>");
-                email.append(d.get("purchaseOrderNumber"));
-                email.append("</td>");
-                email.append("<td>");
-                email.append(d.get("reasonCode"));
-                email.append("</td>");
-                email.append("<td>");
-                email.append(d.get("reasonCodeDescription"));
-                email.append("</td>");
-                email.append("<tr>");
+                if(d.get("reasonCode").equals("33") || d.get("reasonCode").equals("34") || d.get("reasonCode").equals("35") || d.get("reasonCode").equals("37")) {
+                    email.append("<tr style=\"color: blue;\">");
+                    email.append("<td>");
+                    email.append(d.get("purchaseOrderNumber"));
+                    email.append("</td>");
+                    email.append("<td>");
+                    email.append(d.get("reasonCode"));
+                    email.append("</td>");
+                    email.append("<td>");
+                    email.append(d.get("reasonCodeDescription"));
+                    email.append("</td>");
+                    email.append("<tr>");
+                }
             }
         }
         email.append("</table></body></html>");
